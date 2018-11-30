@@ -89,6 +89,11 @@ void MainWindow::on_packetList_itemSelectionChanged()
         model->appendRow(item);
         item->appendRow(new QStandardItem(cur_ph->dns.c_str()));
     }
+    if(cur_ph->flags & SMTP_FLAG) {
+        auto *item = new QStandardItem("Simple Mail Transfer Protocol");
+        model->appendRow(item);
+        item->appendRow(new QStandardItem(cur_ph->smtp.c_str()));
+    }
     ui->hexView->setText(cur_ph->hex.c_str());
     ui->headerView->setModel(model);
 }

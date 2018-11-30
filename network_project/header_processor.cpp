@@ -50,6 +50,7 @@ void process_ether_L1(const pcap_pkthdr *pkthdr,
     process_ip_L2(pkthdr,packet+sizeof(struct ether_header),eh);
   }
   else if(ether_type == ETHERTYPE_ARP) {
+    ph.header_info.protocol="ARP";
     process_arp_L2(pkthdr,packet+sizeof(struct ether_header),eh);
   }
 }
@@ -97,10 +98,13 @@ void process_ip_L2(const pcap_pkthdr *pkthdr,
            % src_addr
            % dst_addr).str();
   ph.flags|=IP_FLAG;
+  ph.header_info.protocol="IP";
   if (protocol == IPPROTO_TCP) {
+      ph.header_info.protocol = "TCP";
     process_tcp_L3(pkthdr,packet+iph->ihl*4,eh,iph);
   }
   else if(protocol == IPPROTO_UDP) {
+      ph.header_info.protocol = "UDP";
     process_udp_L3(pkthdr,packet+iph->ihl*4,eh,iph);
   }
 }
@@ -115,6 +119,7 @@ void process_arp_L2(const pcap_pkthdr *pkthdr,
       protocol_type = arph->ar_pro,
       protocol_size = arph->ar_pln,
       opcode        = arph->ar_op;
+    ph.flags|=ARP_FLAG;
     ph.arp = (boost::format(
               "Hardware type: %d\n"
               "Protocol type: %d\n"
@@ -126,7 +131,6 @@ void process_arp_L2(const pcap_pkthdr *pkthdr,
               % hardware_size
               % protocol_size
               % opcode).str();
-    ph.flags|=ARP_FLAG;
 }
 
 void process_tcp_L3(const pcap_pkthdr *pkthdr,
@@ -175,8 +179,9 @@ void process_tcp_L3(const pcap_pkthdr *pkthdr,
     ph.header_info.protocol="HTTP";
     process_http_L4(pkthdr,packet+tcph->doff*4,eh,iph,tcph);
   }
-  else {
-      ph.header_info.protocol = "TCP";
+  else if(src_port == 25 || dst_port == 25) {
+    ph.header_info.protocol="SMTP";
+    process_smtp_L4(pkthdr,packet+tcph->doff*4,eh,iph,tcph);
   }
 }
 
@@ -205,11 +210,7 @@ void process_udp_L3(const pcap_pkthdr *pkthdr,
   ph.flags |= UDP_FLAG;
   if(src_port == 53 || dst_port == 53) {
     ph.header_info.protocol="DNS";
-    std::cout << sizeof(udphdr) << "\n";
     process_dns_L4(pkthdr,packet+sizeof(pkthdr),eh,iph,udph);
-  }
-  else {
-    ph.header_info.protocol="UDP";
   }
 }
 
@@ -272,7 +273,13 @@ void process_smtp_L4(const pcap_pkthdr *pkthdr,
                      const ether_header *eh,
                      const iphdr *iph,
                      const tcphdr *tcph) {
+    const u_char *pkt = packet;
+    int len = pkthdr->caplen - 14 - iph->ihl*4 - tcph->doff*4;
     ph.flags |= SMTP_FLAG;
+    for(;len;pkt++,len--) {
+        ph.smtp+=*pkt;
+    }
+    std::cout << ph.smtp;
 
 }
 
