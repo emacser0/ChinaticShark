@@ -1,6 +1,7 @@
 #include <deque>
 #include <QTimer>
 #include <QStandardItemModel>
+#include <pthread.h>
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include "pcap_thread.hpp"
@@ -12,7 +13,7 @@ MainWindow::MainWindow(QWidget *parent) :
 {
     ui->setupUi(this);
     ui->packetList->setColumnCount(3);
-    QTreeWidgetItem *header = new QTreeWidgetItem;
+    auto *header = new QTreeWidgetItem;
     header->setText(0, "No.");
     header->setText(1, "Source");
     header->setText(2, "Destination");
@@ -23,6 +24,13 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(refresh_timer,SIGNAL(timeout()),this,SLOT(on_timer()));
     refresh_timer->start(300);
     packet_list_index=1;
+    ui->threadList->setColumnCount(2);
+    auto *thread_header = new QTreeWidgetItem;
+    thread_header->setText(0,"device name");
+    thread_header->setText(1,"Filter");
+    ui->threadList->setHeaderItem(thread_header);
+    ui->devEdit->clear();
+    ui->filterEdit->clear();
 }
 
 MainWindow::~MainWindow()
@@ -35,7 +43,7 @@ on_timer() {
     while(result_header.size()) {
         auto &result_ph=result_header.back();
         ph_list.push_back(result_ph);
-        QTreeWidgetItem *item = new QTreeWidgetItem;
+        auto *item = new QTreeWidgetItem;
         item->setText(0, QString::number(packet_list_index++));
         item->setText(1, result_ph.header_info.source.c_str());
         item->setText(2, result_ph.header_info.destination.c_str());
@@ -92,7 +100,9 @@ void MainWindow::on_packetList_itemSelectionChanged()
     if(cur_ph->flags & SMTP_FLAG) {
         auto *item = new QStandardItem("Simple Mail Transfer Protocol");
         model->appendRow(item);
-        item->appendRow(new QStandardItem(cur_ph->smtp.c_str()));
+        for(auto i : cur_ph->smtp) {
+            item->appendRow(new QStandardItem(QString::fromUtf8(i.c_str())));
+        }
     }
     ui->hexView->setText(cur_ph->hex.c_str());
     ui->headerView->setModel(model);
@@ -106,4 +116,43 @@ void MainWindow::on_startButton_clicked()
 void MainWindow::on_stopButton_clicked()
 {
     stop = 1;
+}
+
+void MainWindow::on_addButton_clicked()
+{
+    std::string dev_name = ui->devEdit->text().toStdString();
+    std::string filter = ui->filterEdit->text().toStdString();
+    ui->devEdit->clear();
+    ui->filterEdit->clear();
+    auto *new_pcap_thread = new std::thread(
+                init_pcap_thread,
+                dev_name,filter);
+    thread_list.push_back(new_pcap_thread);
+    auto *item = new QTreeWidgetItem();
+    item->setText(0,dev_name.c_str());
+    item->setText(1,filter.c_str());
+    ui->threadList->addTopLevelItem(item);
+}
+
+void MainWindow::on_ClearButton_clicked()
+{
+    for(auto i : thread_list) {
+        auto handle = i->native_handle();
+        i->detach();
+        pthread_cancel(handle);
+    }
+    thread_list.clear();
+    ui->threadList->clear();
+}
+
+void MainWindow::on_deleteButton_clicked()
+{
+    int index = ui->threadList->currentIndex().row();
+    if(index>=0 && index<thread_list.size()) {
+        auto handle = thread_list[index]->native_handle();
+        thread_list[index]->detach();
+        pthread_cancel(handle);
+        thread_list.erase(thread_list.begin()+index);
+        ui->threadList->takeTopLevelItem(index);
+    }
 }

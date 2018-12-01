@@ -9,10 +9,9 @@
 #define NONPROMISCUOUS 0
 extern bool stop;
 extern std::deque<ProcessedHeader> result_header;
-
 void
 callback(u_char *useless,
          const pcap_pkthdr *pkthdr,
          const u_char *packet);
-void init_pcap_thread(int argc, char **argv);
+void init_pcap_thread(const std::string &dev,const std::string &filter);
 #endif // PCAP_THREAD_HPP

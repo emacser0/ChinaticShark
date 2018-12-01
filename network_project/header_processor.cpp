@@ -232,9 +232,7 @@ void process_http_L4(const pcap_pkthdr *pkthdr,
           pkt++;
       }
       else {
-          if(ph.http.size()) {
-               ph.http.back()+=(*pkt);
-          }
+          ph.http.back()+=(*pkt);
       }
   }
 }
@@ -276,11 +274,19 @@ void process_smtp_L4(const pcap_pkthdr *pkthdr,
     const u_char *pkt = packet;
     int len = pkthdr->caplen - 14 - iph->ihl*4 - tcph->doff*4;
     ph.flags |= SMTP_FLAG;
+    ph.smtp.push_back("");
     for(;len;pkt++,len--) {
-        ph.smtp+=*pkt;
+        if(*pkt=='\n') {
+            ph.smtp.push_back("");
+        }
+        else if(*pkt=='\r') {
+            ph.smtp.push_back("");
+            pkt++;
+        }
+        else {
+            ph.smtp.back()+=(*pkt);
+        }
     }
-    std::cout << ph.smtp;
-
 }
 
 void process_bittorrent_L4(const pcap_pkthdr *pkthdr,
@@ -298,7 +304,7 @@ void process_hex_L1(const pcap_pkthdr *pkthdr,
   ph.hex.clear();
   for(ix = 0, iz = 0; ix < len/16+1; ++ix)
   {
-    ph.hex += (boost::format("0x%04X ")%addr).str();
+    ph.hex += (boost::format("0x%04X    ")%addr).str();
     for(iy = 0; iy < 16; ++iy)
     {
       if(iz < len) {
@@ -312,6 +318,7 @@ void process_hex_L1(const pcap_pkthdr *pkthdr,
     }
     p -= 16;
     iz -= 16;
+    ph.hex += "   ";
     for(iy = 0; iy < 16; ++iy)
     {
       if((0x21 <= *p) && (0x7E >= *p) && (iz < len)) {

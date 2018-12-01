@@ -21,6 +21,7 @@ public:
 protected:
     QTimer *refresh_timer;
     QVector<ProcessedHeader> ph_list;
+    QVector<std::thread*> thread_list;
     uint32_t packet_list_index;
 signals:
     void timeout();
@@ -31,6 +32,12 @@ private slots:
     void on_startButton_clicked();
 
     void on_stopButton_clicked();
+
+    void on_addButton_clicked();
+
+    void on_ClearButton_clicked();
+
+    void on_deleteButton_clicked();
 
 private:
     Ui::MainWindow *ui;

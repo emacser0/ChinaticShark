@@ -19,6 +19,40 @@ struct basic_dnshdr {
     u_short add;
 };
 
+struct basic_bittorhdr {
+    uint32_t message_length;
+    u_char message_type;
+};
+
+struct bittorhdr_have {
+    uint32_t message_length;
+    u_char message_type;
+    uint32_t piece_index;
+};
+
+struct bittorhdr_request {
+    uint32_t message_length;
+    u_char message_type;
+    uint32_t piece_index;
+    uint32_t begin_offset_of_piece;
+    uint32_t piece_length;
+};
+
+struct bittorhdr_piece {
+    uint32_t message_length;
+    u_char message_type;
+    uint32_t index;
+    uint32_t begin_offset_of_piece;
+};
+
+struct bittorhdr_cancel {
+    uint32_t message_length;
+    u_char message_type;
+    uint32_t piece_index;
+    uint32_t begin_offset_of_piece;
+    uint32_t piece_length;
+};
+
 #define ETHER_FLAG 1
 #define IP_FLAG 2
 #define ARP_FLAG 4
@@ -54,7 +88,7 @@ struct ProcessedHeader {
   std::string udp;
   std::vector<std::string> http;
   std::string dns;
-  std::string smtp;
+  std::vector<std::string> smtp;
   std::string bittorrent;
   std::string hex;
   uint32_t flags;
