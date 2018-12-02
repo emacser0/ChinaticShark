@@ -1,6 +1,10 @@
 #include <deque>
 #include <QTimer>
 #include <QStandardItemModel>
+#include <QFileDialog>
+#include <QFile>
+#include <QTextStream>
+#include <thread>
 #include <pthread.h>
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
@@ -12,19 +16,17 @@ MainWindow::MainWindow(QWidget *parent) :
     ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-    ui->packetList->setColumnCount(3);
     auto *header = new QTreeWidgetItem;
     header->setText(0, "No.");
     header->setText(1, "Source");
     header->setText(2, "Destination");
     header->setText(3, "Protocol");
     header->setText(4, "Length");
+    header->setText(5, "Info");
     ui->packetList->setHeaderItem(header);
     refresh_timer=new QTimer;
     connect(refresh_timer,SIGNAL(timeout()),this,SLOT(on_timer()));
     refresh_timer->start(300);
-    packet_list_index=1;
-    ui->threadList->setColumnCount(2);
     auto *thread_header = new QTreeWidgetItem;
     thread_header->setText(0,"device name");
     thread_header->setText(1,"Filter");
@@ -44,11 +46,12 @@ on_timer() {
         auto &result_ph=result_header.back();
         ph_list.push_back(result_ph);
         auto *item = new QTreeWidgetItem;
-        item->setText(0, QString::number(packet_list_index++));
+        item->setText(0, QString::number(ph_list.size()));
         item->setText(1, result_ph.header_info.source.c_str());
         item->setText(2, result_ph.header_info.destination.c_str());
         item->setText(3, result_ph.header_info.protocol.c_str());
         item->setText(4, QString::number(result_ph.header_info.cap_len));
+        item->setText(5, result_ph.header_info.info.c_str());
         ui->packetList->addTopLevelItem(item);
         result_header.pop_back();
     }
@@ -88,19 +91,21 @@ void MainWindow::on_packetList_itemSelectionChanged()
     if(cur_ph->flags & HTTP_FLAG) {
         auto *item = new QStandardItem("Hypertext Transfer Protocol");
         model->appendRow(item);
-        for(auto i : cur_ph->http) {
+        for(auto &i : cur_ph->http) {
             item->appendRow(new QStandardItem(QString::fromUtf8(i.c_str())));
         }
     }
     if(cur_ph->flags & DNS_FLAG) {
         auto *item = new QStandardItem("Domain Name System");
         model->appendRow(item);
-        item->appendRow(new QStandardItem(cur_ph->dns.c_str()));
+        for(std::string &i : cur_ph->dns) {
+            item->appendRow(new QStandardItem(i.c_str()));
+        }
     }
     if(cur_ph->flags & SMTP_FLAG) {
         auto *item = new QStandardItem("Simple Mail Transfer Protocol");
         model->appendRow(item);
-        for(auto i : cur_ph->smtp) {
+        for(auto &i : cur_ph->smtp) {
             item->appendRow(new QStandardItem(QString::fromUtf8(i.c_str())));
         }
     }
@@ -136,7 +141,7 @@ void MainWindow::on_addButton_clicked()
 
 void MainWindow::on_ClearButton_clicked()
 {
-    for(auto i : thread_list) {
+    for(auto &i : thread_list) {
         auto handle = i->native_handle();
         i->detach();
         pthread_cancel(handle);
@@ -155,4 +160,84 @@ void MainWindow::on_deleteButton_clicked()
         thread_list.erase(thread_list.begin()+index);
         ui->threadList->takeTopLevelItem(index);
     }
+}
+
+void MainWindow::on_saveButton_clicked()
+{
+    QFileDialog dialog;
+    dialog.setFileMode(QFileDialog::AnyFile);
+    QString file_name = dialog.getSaveFileName();
+    QFile file(file_name);
+    if(!file.open(QIODevice::WriteOnly)) {
+        return;
+    }
+    QTextStream stream(&file);
+    for(uint32_t i=0;i<ph_list.size();i++) {
+        stream << "---------------------------\n";
+        auto *cur_ph = &(ph_list[i]);
+        stream << i << " "
+               << cur_ph->header_info.source.c_str() << " "
+               << cur_ph->header_info.destination.c_str() << " "
+               << cur_ph->header_info.protocol.c_str() << " "
+               << cur_ph->header_info.cap_len << " "
+               << cur_ph->header_info.info.c_str() << "\n";
+        if(cur_ph->flags & ETHER_FLAG) {
+            stream << cur_ph->ether_info.c_str()
+                   << "\n"
+                   << cur_ph->ether.c_str();
+        }
+        if(cur_ph->flags & IP_FLAG) {
+            stream << cur_ph->ip_info.c_str()
+                   << "\n"
+                   << cur_ph->ip.c_str();
+        }
+        if(cur_ph->flags & ARP_FLAG) {
+            stream << "Address Resolution Protocol\n"
+                   << cur_ph->arp.c_str()
+                   << "\n";
+        }
+        if(cur_ph->flags & TCP_FLAG) {
+            stream << cur_ph->tcp_info.c_str()
+                   << "\n"
+                   << cur_ph->tcp.c_str()
+                   << "\n";
+        }
+        if(cur_ph->flags & UDP_FLAG) {
+            stream << cur_ph->udp_info.c_str()
+                   << "\n"
+                   << cur_ph->udp.c_str()
+                   << "\n";
+        }
+        if(cur_ph->flags & HTTP_FLAG) {
+            stream << "Hypertext Transfer Protocol\n";
+            for(auto &i : cur_ph->http) {
+                stream << QString::fromUtf8(i.c_str())
+                       << "\n";
+            }
+        }
+        if(cur_ph->flags & DNS_FLAG) {
+            stream << "Domain Name System\n";
+            for(auto &i : cur_ph->dns) {
+                stream << i.c_str()
+                       << "\n";
+            }
+        }
+        if(cur_ph->flags & SMTP_FLAG) {
+            stream << "Simple Mail Transfer Protocol\n";
+            for(auto &i : cur_ph->smtp) {
+                stream << QString::fromUtf8(i.c_str())
+                       << "\n";
+            }
+        }
+        if(cur_ph->flags & BITTORRENT_FLAG) {
+
+        }
+    }
+    file.close();
+}
+
+void MainWindow::on_packetClearButton_clicked()
+{
+    ph_list.clear();
+    ui->packetList->clear();
 }

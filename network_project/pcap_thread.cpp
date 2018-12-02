@@ -16,13 +16,13 @@ callback(u_char *useless,
 }
 
 void init_pcap_thread(const std::string &dev_name,const std::string &filter) {
-
     char *net,*mask,errbuf[PCAP_ERRBUF_SIZE];
     pcap_if_t *dev;
     bpf_u_int32 netp,maskp;
     in_addr net_addr, mask_addr;
     bpf_program fp;
     pcap_t *pcd;  // packet capture descriptor
+    system("su");
     if (pcap_findalldevs(&dev,errbuf) < 0) {
       std::cerr << errbuf;
       return;
@@ -46,7 +46,7 @@ void init_pcap_thread(const std::string &dev_name,const std::string &filter) {
     }
     pcap_freealldevs(dev);
     if (pcap_compile(pcd, &fp, filter.c_str(), 0, netp) == -1) {
-      std::cout << "compile error\n";
+      std::cerr << "compile error\n";
       return;
     }
     if (pcap_setfilter(pcd, &fp) == -1) {

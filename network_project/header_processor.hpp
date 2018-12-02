@@ -53,26 +53,28 @@ struct bittorhdr_cancel {
     uint32_t piece_length;
 };
 
-#define ETHER_FLAG 1
-#define IP_FLAG 2
-#define ARP_FLAG 4
-#define TCP_FLAG 8
-#define UDP_FLAG 16
-#define HTTP_FLAG 32
-#define DNS_FLAG 64
-#define SMTP_FLAG 128
-#define BITTORRENT_FLAG 256
-
+#define ETHER_FLAG 0x1
+#define IP_FLAG 0x2
+#define ARP_FLAG 0x4
+#define TCP_FLAG 0x8
+#define UDP_FLAG 0x10
+#define HTTP_FLAG 0x20
+#define DNS_FLAG 0x40
+#define SMTP_FLAG 0x80
+#define BITTORRENT_FLAG 0x100
+#define SSDP_FLAG 0x200
 struct HeaderInfo {
     std::string source;
     std::string destination;
     std::string protocol;
     uint32_t cap_len;
+    std::string info;
     void reset() {
         source.clear();
         destination.clear();
         protocol.clear();
         cap_len = 0;
+        info.clear();
     }
 };
 
@@ -87,9 +89,10 @@ struct ProcessedHeader {
   std::string udp_info;
   std::string udp;
   std::vector<std::string> http;
-  std::string dns;
+  std::vector<std::string> dns;
   std::vector<std::string> smtp;
-  std::string bittorrent;
+  std::vector<std::string> bittorrent;
+  std::vector<std::string> ssdp;
   std::string hex;
   uint32_t flags;
   HeaderInfo header_info;
@@ -129,6 +132,8 @@ void process_smtp_L4(const pcap_pkthdr*,const u_char*,const ether_header*,
                      const iphdr*,const tcphdr*);
 void process_bittorrent_L4(const pcap_pkthdr*,const u_char*,const ether_header*,
                            const iphdr*,const tcphdr*);
+void process_ssdp_L4(const pcap_pkthdr*,const u_char*,const ether_header*,
+                     const iphdr*,const udphdr*);
 void process_hex_L1(const pcap_pkthdr*,const u_char*);
 
 #endif

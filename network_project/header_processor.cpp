@@ -36,12 +36,12 @@ void process_ether_L1(const pcap_pkthdr *pkthdr,
   ph.header_info.source = src_addr_str;
   ph.header_info.destination = dst_addr_str;
   ph.ether_info = (boost::format(
-                     "Ethernet II Src: %s Dst: %s\n")
+                     "Ethernet II Src: %s Dst: %s")
                    % dst_addr_str % src_addr_str).str();
   ph.ether = (boost::format(
                 "Destination: %s\n"
                 "Source: %s\n"
-                "Type : 0x%x\n")
+                "Type : 0x%x")
               % dst_addr_str
               % src_addr_str
               % ether_type).str();
@@ -73,8 +73,9 @@ void process_ip_L2(const pcap_pkthdr *pkthdr,
     checksum     = ntohs(iph->check);
   ph.header_info.destination=dst_addr;
   ph.header_info.source=src_addr;
+  ph.header_info.protocol="IP";
   ph.ip_info = (boost::format(
-                  "IP Protocol Version %u, Src: %s, Dst: %s\n")
+                  "IP Protocol Version %u, Src: %s, Dst: %s")
                 % version % src_addr % dst_addr).str();
   ph.ip = (boost::format(
              "Version: %u\n"
@@ -86,7 +87,7 @@ void process_ip_L2(const pcap_pkthdr *pkthdr,
              "Protocol: %u\n"
              "Header checksum: 0x%x\n"
              "Source: %s\n"
-             "Destination: %s\n")
+             "Destination: %s")
            % version
            % (header_len*4) % header_len
            % total_len
@@ -98,7 +99,6 @@ void process_ip_L2(const pcap_pkthdr *pkthdr,
            % src_addr
            % dst_addr).str();
   ph.flags|=IP_FLAG;
-  ph.header_info.protocol="IP";
   if (protocol == IPPROTO_TCP) {
       ph.header_info.protocol = "TCP";
     process_tcp_L3(pkthdr,packet+iph->ihl*4,eh,iph);
@@ -125,7 +125,7 @@ void process_arp_L2(const pcap_pkthdr *pkthdr,
               "Protocol type: %d\n"
               "Hardware size: %d\n"
               "Protocol size: %d\n"
-              "Opcode: %d\n")
+              "Opcode: %d")
               % hardware_type
               % protocol_type
               % hardware_size
@@ -151,8 +151,35 @@ void process_tcp_L3(const pcap_pkthdr *pkthdr,
     checksum    = ntohs(tcph->check),
     urg_ptr     = ntohs(tcph->urg_ptr);
   ph.tcp_info = (boost::format(
-              "Transmission Control Protocl, Src Port: %s Dst Port: %s Seq: %u Len: %u\n")
+              "Transmission Control Protocl, Src Port: %s Dst Port: %s Seq: %u Len: %u")
               % src_port % dst_port % seq % segment_len).str();
+  ph.header_info.info = (boost::format(
+                             "%d -> %d")
+                         % src_port
+                         % dst_port).str();
+  std::string flag_str;
+  if(flags) {
+      if(flags & 0x1) {
+          flag_str += "FIN, ";
+      }
+      if(flags & 0x2) {
+          flag_str += "SYN, ";
+      }
+      if(flags & 0x4) {
+          flag_str += "RST, ";
+      }
+      if(flags & 0x8) {
+          flag_str += "PSH, ";
+      }
+      if(flags & 0x10) {
+          flag_str += "ACK, ";
+      }
+      if(flags & 0x20) {
+          flag_str += "URG, ";
+      }
+      flag_str.resize(flag_str.size()-2);
+  }
+  ph.header_info.info += " [" +flag_str + "]";
   ph.tcp = (boost::format(
               "Source Port: %u\n"
               "Destination Port: %u\n"
@@ -160,10 +187,10 @@ void process_tcp_L3(const pcap_pkthdr *pkthdr,
               "Sequence number: %u\n"
               "Acknowledgement number: %u\n"
               "Header Length: %u bytes (%u)\n"
-              "Flags: 0x%x\n"
+              "Flags: 0x%x (%s)\n"
               "Window size value: %u\n"
-              "Checksum: 0x%x\n"
-              "Urgent pointer: %u\n")
+              "Checksum: 0x%04x\n"
+              "Urgent pointer: %u")
             % src_port
             % dst_port
             % segment_len
@@ -171,6 +198,7 @@ void process_tcp_L3(const pcap_pkthdr *pkthdr,
             % ack_seq
             % header_len % doff
             % flags
+            % flag_str
             % win_size
             % checksum
             % urg_ptr).str();
@@ -196,21 +224,31 @@ void process_udp_L3(const pcap_pkthdr *pkthdr,
     len             = ntohs(udph->len),
     check_sum       = ntohs(udph->check);
   ph.udp_info = (boost::format(
-    "User Datagram Protocol, Src Port: %s Dst Port: %s\n")
+    "User Datagram Protocol, Src Port: %s Dst Port: %s")
     % src_port % dst_port).str();
     ph.udp = (boost::format(
               "Source Port: %s\n"
               "Destination Port: %s\n"
               "Length %s\n"
-              "Checksum: 0x%x\n")
+              "Checksum: 0x%04x")
             % src_port
             % dst_port
             % len
             % check_sum).str();
   ph.flags |= UDP_FLAG;
+  ph.header_info.info = (boost::format(
+                             "%d -> %d")
+                         % src_port
+                         % dst_port).str();
   if(src_port == 53 || dst_port == 53) {
     ph.header_info.protocol="DNS";
     process_dns_L4(pkthdr,packet+sizeof(pkthdr),eh,iph,udph);
+  }
+  else if(dst_port == 1900) {
+      ph.header_info.protocol="SSDP";
+  }
+  else {
+
   }
 }
 
@@ -251,19 +289,39 @@ void process_dns_L4(const pcap_pkthdr *pkthdr,
       ans     = ntohs(dnsh->ans),
       auth    = ntohs(dnsh->auth),
       add     = ntohs(dnsh->add);
-    ph.dns = (boost::format(
+    ph.dns.push_back((boost::format(
               "Transaction ID: 0x%x\n"
               "Flags: 0x%x\n"
               "Questions: %d\n"
               "Answer RRs: %d\n"
               "Authority RRs: %d\n"
-              "Additional RRs: %d\n")
+              "Additional RRs: %d")
               % tran_id
               % flags
               % qst
               % ans
               % auth
-              % add).str();
+              % add).str());
+    const u_char *pkt = packet+sizeof(basic_dnshdr)+1;
+    int len = pkthdr->caplen - 14 - iph->ihl*4 - sizeof(udphdr) - sizeof(basic_dnshdr) -1;
+    ph.dns.push_back("");
+    for(;len;pkt++,len--) {
+        if(*pkt=='\n') {
+            ph.dns.push_back("");
+        }
+        else if(*pkt=='\r') {
+            ph.dns.push_back("");
+            pkt++;
+        }
+        else {
+            if(*pkt >= '!' && *pkt <= '~') {
+                ph.dns.back()+=(*pkt);
+            }
+            else {
+                ph.dns.back()+='.';
+            }
+        }
+    }
 }
 
 void process_smtp_L4(const pcap_pkthdr *pkthdr,
@@ -295,6 +353,14 @@ void process_bittorrent_L4(const pcap_pkthdr *pkthdr,
                            const iphdr *iph,
                            const tcphdr *tcph) {
     ph.flags |= BITTORRENT_FLAG;
+}
+
+void process_ssdp_L4(const pcap_pkthdr *pkthdr,
+                     const u_char * packet,
+                     const ether_header *eh,
+                     const iphdr *iph,
+                     const udphdr *udph) {
+
 }
 
 void process_hex_L1(const pcap_pkthdr *pkthdr,

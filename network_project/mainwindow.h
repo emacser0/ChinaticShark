@@ -22,7 +22,6 @@ protected:
     QTimer *refresh_timer;
     QVector<ProcessedHeader> ph_list;
     QVector<std::thread*> thread_list;
-    uint32_t packet_list_index;
 signals:
     void timeout();
 private slots:
@@ -38,6 +37,10 @@ private slots:
     void on_ClearButton_clicked();
 
     void on_deleteButton_clicked();
+
+    void on_saveButton_clicked();
+
+    void on_packetClearButton_clicked();
 
 private:
     Ui::MainWindow *ui;
