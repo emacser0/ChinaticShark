@@ -24,10 +24,10 @@ void process_tcp_L3(ProcessedHeader &ph,const pcap_pkthdr *pkthdr,
     checksum    = ntohs(tcph->check),
     urg_ptr     = ntohs(tcph->urg_ptr);
   ph.tcp_info = (boost::format(
-              "Transmission Control Protocl, Src Port: %s Dst Port: %s Seq: %u Len: %u")
-              % src_port % dst_port % seq % segment_len).str();
+                   "Transmission Control Protocl, Src Port: %s Dst Port: %s Seq: %u Len: %u")
+                 % src_port % dst_port % seq % segment_len).str();
   ph.header_info.info = (boost::format(
-                             "%d -> %d")
+                           "%d -> %d")
                          % src_port
                          % dst_port).str();
   std::string flag_str = make_tcp_flags_string(flags);
@@ -63,113 +63,106 @@ void process_tcp_L3(ProcessedHeader &ph,const pcap_pkthdr *pkthdr,
     process_smtp_L4(ph,pkthdr,nextpkt,eh,iph,tcph);
   }
   else {
-      uint32_t bittorrent_flags = is_bittorrent_protocol(pkthdr,nextpkt,eh,iph,tcph);
-      if(bittorrent_flags){
-         process_bittorrent_L4(ph,pkthdr,nextpkt,eh,iph,tcph,bittorrent_flags,
-                               calc_length_tcp_L4(pkthdr,iph,tcph));
-      }
+    uint32_t bittorrent_flags = is_bittorrent_protocol(pkthdr,nextpkt,eh,iph,tcph);
+    if(bittorrent_flags){
+      process_bittorrent_L4(ph,pkthdr,nextpkt,eh,iph,tcph,bittorrent_flags,
+                            calc_length_tcp_L4(pkthdr,iph,tcph));
+    }
   }
 }
 
 const std::string make_tcp_flags_string(uint32_t flags) {
-    std::string flags_str;
-    if(flags) {
-        if(flags & 0x1) {
-            flags_str += "FIN, ";
-        }
-        if(flags & 0x2) {
-            flags_str += "SYN, ";
-        }
-        if(flags & 0x4) {
-            flags_str += "RST, ";
-        }
-        if(flags & 0x8) {
-            flags_str += "PSH, ";
-        }
-        if(flags & 0x10) {
-            flags_str += "ACK, ";
-        }
-        if(flags & 0x20) {
-            flags_str += "URG, ";
-        }
-        flags_str.resize(flags_str.size()-2);
+  std::string flags_str;
+  if(flags) {
+    if(flags & 0x1) {
+      flags_str += "FIN, ";
     }
-    return flags_str;
+    if(flags & 0x2) {
+      flags_str += "SYN, ";
+    }
+    if(flags & 0x4) {
+      flags_str += "RST, ";
+    }
+    if(flags & 0x8) {
+      flags_str += "PSH, ";
+    }
+    if(flags & 0x10) {
+      flags_str += "ACK, ";
+    }
+    if(flags & 0x20) {
+      flags_str += "URG, ";
+    }
+    flags_str.resize(flags_str.size()-2);
+  }
+  return flags_str;
 }
 
-uint32_t protocol_name_test(const pcap_pkthdr *pkthdr,const u_char *packet,
-                            const iphdr *iph, const tcphdr *tcph);
+bool protocol_name_test(const pcap_pkthdr *pkthdr,const u_char *packet,
+                        const iphdr *iph, const tcphdr *tcph);
 
 uint32_t is_bittorrent_protocol(const pcap_pkthdr *pkthdr,
-                            const u_char *packet,
-                            const ether_header *eh,
-                            const iphdr *iph,
-                            const tcphdr *tcph){
-    if(protocol_name_test(pkthdr,packet,iph,tcph)) {
-        return 0x3;
+                                const u_char *packet,
+                                const ether_header *eh,
+                                const iphdr *iph,
+                                const tcphdr *tcph){
+  if(protocol_name_test(pkthdr,packet,iph,tcph)) {
+    return 0x3;
+  }
+  for(auto i=0;i<bittorrent_peer_list.size();i++) {
+    std::string
+      saddr = inet_ntoa(*(in_addr*)&iph->saddr),
+      daddr = inet_ntoa(*(in_addr*)&iph->daddr);
+    const std::string &current = bittorrent_peer_list[i];
+    if(current == saddr || current == daddr) {
+      basic_bittorhdr *bh = (basic_bittorhdr*)packet;
+      if(current == saddr && tcph->fin) {
+        bittorrent_peer_list.erase(bittorrent_peer_list.begin()+i);
+      }
+      else if(calc_length_tcp_L4(pkthdr,iph,tcph) > sizeof_nopad(bh)){
+        return 0x1;
+      }
+      return 0x0;
     }
-    for(uint32_t i=0;i<bittorrent_peer_list.size();i++) {
-        std::string
-                saddr = inet_ntoa(*(in_addr*)&iph->saddr),
-                daddr = inet_ntoa(*(in_addr*)&iph->daddr);
-        const std::string &current = bittorrent_peer_list[i];
-        if(current == saddr || current == daddr) {
-            basic_bittorhdr *bh = (basic_bittorhdr*)packet;
-            if(current == saddr && tcph->fin) {
-                bittorrent_peer_list.erase(bittorrent_peer_list.begin()+i);
-            }
-            if(tcph->psh) {
-                return 0x1;
-            }
-            return 0x0;
-        }
-    }
+  }
 }
 
-uint32_t protocol_name_test(const pcap_pkthdr *pkthdr,
+bool protocol_name_test(const pcap_pkthdr *pkthdr,
                         const u_char *packet,
                         const iphdr *iph,
                         const tcphdr *tcph) {
-    int pktlen = calc_length_tcp_L4(pkthdr,iph,tcph);
-    if(pktlen < 20 + sizeof(bittorhdr_handshake)) {
-        return 0x0;
+  int pktlen = calc_length_tcp_L4(pkthdr,iph,tcph);
+  if(pktlen < 20 + sizeof(bittorhdr_handshake)) {
+    return false;
+  }
+  const u_char *tmp_pktptr = packet;
+  std::string protocol_name;
+  u_char *protocol_name_length = (u_char*)tmp_pktptr;
+  if(*protocol_name_length < 19) {
+    return false;
+  }
+  int len = 19;
+  for(tmp_pktptr+=sizeof(u_char);len;tmp_pktptr++,len--) {
+    protocol_name += *tmp_pktptr;
+  }
+  if(protocol_name == "BitTorrent protocol") {
+    std::string daddr = inet_ntoa(*(in_addr*)&iph->daddr);
+    auto index = std::find(bittorrent_peer_list.begin(),
+                           bittorrent_peer_list.end(),
+                           daddr);
+    if(index == bittorrent_peer_list.end() ) {
+      bittorrent_peer_list.push_back(daddr);
     }
-    const u_char *tmp_pktptr = packet;
-    std::string protocol_name;
-    u_char *protocol_name_length = (u_char*)tmp_pktptr;
-    if(*protocol_name_length < 19) {
-        return 0x0;
-    }
-    int len = 19;
-    for(tmp_pktptr+=sizeof(u_char);len;tmp_pktptr++,len--) {
-        protocol_name += *tmp_pktptr;
-    }
-    if(protocol_name == "BitTorrent protocol") {
-        std::string daddr = inet_ntoa(*(in_addr*)&iph->daddr);
-        int index = std::find(bittorrent_peer_list.begin(),
-                              bittorrent_peer_list.end(),
-                              daddr) - bittorrent_peer_list.begin();
-        if(index < 0 ) {
-            bittorrent_peer_list.push_back(daddr);
-        }
-        else {
-            for(int i=0;i<bittorrent_peer_list.size();i++) {
-                if(bittorrent_peer_list[i] == daddr) {
-                    bittorrent_peer_list.erase(bittorrent_peer_list.begin()+1);
-                }
-            }
-        }
-        return 0x3;
-    }
-    else {
-        return 0x0;
-    }
+    return true;
+  }
+  else {
+    return false;
+  }
 }
 
 void process_udp_L3(ProcessedHeader &ph, const pcap_pkthdr *pkthdr,
-                           const u_char *packet,
-                           const ether_header *eh,
-                           const iphdr *iph) {
+                    const u_char *packet,
+                    const ether_header *eh,
+                    const iphdr *iph) {
   auto *udph        = (udphdr*)packet;
   uint32_t
     src_port        = ntohs(udph->source),
@@ -177,14 +170,14 @@ void process_udp_L3(ProcessedHeader &ph, const pcap_pkthdr *pkthdr,
     len             = ntohs(udph->len),
     check_sum       = ntohs(udph->check);
   ph.header_info.info = (boost::format(
-                             "%d -> %d Len=%d")
+                           "%d -> %d Len=%d")
                          % src_port
                          % dst_port
                          % (len - sizeof(udphdr))).str();
   ph.udp_info = (boost::format(
-    "User Datagram Protocol, Src Port: %s Dst Port: %s")
-    % src_port % dst_port).str();
-    ph.udp = (boost::format(
+                   "User Datagram Protocol, Src Port: %s Dst Port: %s")
+                 % src_port % dst_port).str();
+  ph.udp = (boost::format(
               "Source Port: %s\n"
               "Destination Port: %s\n"
               "Length %s\n"
@@ -200,8 +193,8 @@ void process_udp_L3(ProcessedHeader &ph, const pcap_pkthdr *pkthdr,
     process_dns_L4(ph,pkthdr,nextpkt,eh,iph,udph);
   }
   else if(dst_port == 1900) {
-      ph.header_info.protocol="SSDP";
-      process_ssdp_L4(ph,pkthdr,nextpkt,eh,iph,udph);
+    ph.header_info.protocol="SSDP";
+    process_ssdp_L4(ph,pkthdr,nextpkt,eh,iph,udph);
   }
   else {
 

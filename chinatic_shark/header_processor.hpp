@@ -12,6 +12,10 @@
 #include <vector>
 #include <boost/format.hpp>
 
+#define nlcast(v) (ntohl(*(uint32_t*)&v))
+#define nscast(v) (ntohs(*(u_short*)&v))
+#define sizeof_nopad(v) (sizeof(v) - sizeof(v->padding))
+
 struct basic_dnshdr {
     u_short tran_id;
     u_short flags;
@@ -19,6 +23,7 @@ struct basic_dnshdr {
     u_short ans;
     u_short auth;
     u_short add;
+    u_char padding[2];
 };
 // Core Protocol
 #define BITTORRENT_CHOKE 0
@@ -42,8 +47,9 @@ struct basic_dnshdr {
 #define BITTORRENT_EXTENDED 20
 
 struct basic_bittorhdr {
-    uint32_t message_length;
+    u_char message_length[4];
     u_char message_type;
+    u_char padding[3];
 };
 
 struct bittorhdr_handshake {
@@ -53,59 +59,67 @@ struct bittorhdr_handshake {
 };
 
 struct bittorhdr_have {
-    uint32_t message_length;
+    u_char message_length[4];
     u_char message_type;
-    uint32_t index;
+    u_char index[4];
+    u_char padding[3];
 };
 
 
 struct bittorhdr_request {
-    uint32_t message_length;
+    u_char message_length[4];
     u_char message_type;
-    uint32_t index;
-    uint32_t begin;
-    uint32_t length;
+    u_char index[4];
+    u_char begin[4];
+    u_char length[4];
+    u_char padding[3];
 };
 
-struct bittorhdr_piece {
-    uint32_t message_length;
+struct  bittorhdr_piece {
+    u_char message_length[4];
     u_char message_type;
-    uint32_t index;
-    uint32_t begin;
+    u_char index[4];
+    u_char begin[4];
+    u_char padding[3];
 };
 
 struct bittorhdr_cancel {
-    uint32_t message_length;
+    u_char message_length[4];
     u_char message_type;
-    uint32_t index;
-    uint32_t begin;
-    uint32_t length;
+    u_char index[4];
+    u_char begin[4];
+    u_char length[4];
+    u_char padding[3];
 };
 
 struct bittorhdr_port {
-    uint32_t message_length;
+    u_char message_length[4];
     u_char message_type;
-    u_short port;
+    u_char port[2];
+    u_char padding[1];
 };
 
 struct bittorhdr_suggest {
-  uint32_t message_length;
+  u_char message_length[4];
   u_char message_type;
-  uint32_t index;
+  u_char index[4];
+  u_char padding[3];
 };
 
 struct bittorhdr_reject {
-    uint32_t message_length;
+    u_char message_length[4];
     u_char message_type;
-    uint32_t index;
-    uint32_t begin;
-    uint32_t length;
+    u_char index[4];
+    u_char begin[4];
+    u_char length[4];
+    u_char padding[3];
 };
 
 struct bittorhdr_allowedfast {
-    uint32_t message_length;
+    u_char message_length[4];
     u_char message_type;
-    uint32_t index;
+    u_char index[4];
+    u_char padding[3];
 };
 
 #define ETHER_FLAG 0x1

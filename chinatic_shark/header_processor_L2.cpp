@@ -45,11 +45,11 @@ void process_ip_L2(ProcessedHeader &ph,
            % dst_addr).str();
   ph.flags|=IP_FLAG;
   if (protocol == IPPROTO_TCP) {
-      ph.header_info.protocol = "TCP";
+    ph.header_info.protocol = "TCP";
     process_tcp_L3(ph,pkthdr,packet+iph->ihl*4,eh,iph);
   }
   else if(protocol == IPPROTO_UDP) {
-      ph.header_info.protocol = "UDP";
+    ph.header_info.protocol = "UDP";
     process_udp_L3(ph,pkthdr,packet+iph->ihl*4,eh,iph);
   }
 }
@@ -58,23 +58,23 @@ void process_arp_L2(ProcessedHeader &ph,
                     const pcap_pkthdr *pkthdr,
                     const u_char *packet,
                     const ether_header *eh) {
-    arphdr *arph = (arphdr*)packet;
-    uint32_t
-      hardware_type = arph->ar_hrd,
-      hardware_size = arph->ar_hln,
-      protocol_type = arph->ar_pro,
-      protocol_size = arph->ar_pln,
-      opcode        = arph->ar_op;
-    ph.flags|=ARP_FLAG;
-    ph.arp = (boost::format(
+  arphdr *arph = (arphdr*)packet;
+  uint32_t
+    hardware_type = arph->ar_hrd,
+    hardware_size = arph->ar_hln,
+    protocol_type = arph->ar_pro,
+    protocol_size = arph->ar_pln,
+    opcode        = arph->ar_op;
+  ph.flags|=ARP_FLAG;
+  ph.arp = (boost::format(
               "Hardware type: %d\n"
               "Protocol type: %d\n"
               "Hardware size: %d\n"
               "Protocol size: %d\n"
               "Opcode: %d")
-              % hardware_type
-              % protocol_type
-              % hardware_size
-              % protocol_size
-              % opcode).str();
+            % hardware_type
+            % protocol_type
+            % hardware_size
+            % protocol_size
+            % opcode).str();
 }
