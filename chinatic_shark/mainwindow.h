@@ -22,9 +22,10 @@ protected:
     QTimer *refresh_timer;
     QVector<ProcessedHeader> ph_list;
     QVector<std::thread*> thread_list;
-    QString ipaddr1_filter;
-    QString ipaddr2_filter;
-    QString protocol_filter;
+    QString
+        ipaddr1_filter,
+        ipaddr2_filter,
+        protocol_filter;
 signals:
     void timeout();
     private slots:
@@ -38,7 +39,6 @@ signals:
         void on_saveButton_clicked();
         void on_packetClearButton_clicked();
         void on_searchButton_clicked();
-
         void on_resetButton_clicked();
 
 private:
